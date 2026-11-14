@@ -80,3 +80,13 @@ Senza Redis usa la memoria del processo (solo per prove locali; su Vercel serve 
 - **Caffè americano** compare due volte nel PDF con prezzi diversi (€ 1,50 e € 1,40): ho inserito entrambe le righe, la seconda marcata "(2° prezzo menù)" – tieni quella giusta.
 - "Spezie piccola/media" e alcune bevande non hanno traduzioni nel PDF: EN/DE usano il nome italiano.
 - Il PDF non indica coperto né servizio: l'app non li aggiunge al totale.
+
+## Ordinazione dei clienti dal QR (novità)
+
+- **Turno** (`/turno`, con PIN): il cameriere **apre le ordinazioni 10 minuti prima del servizio** e le chiude a fine turno (si chiudono da sole dopo 14 ore).
+- **QR dei tavoli** (`/turno/qr`): stampa i 15 QR (6 per foglio A4). Ogni QR apre `/t/N?k=codice`: il cliente vede il menù (IT/EN/DE, prezzi, totale), con il suo tavolo già fissato e senza PIN.
+- A turno chiuso il cliente vede "Ordinazioni non attive". Il codice nel QR è diverso per ogni tavolo e non si può indovinare.
+- Anti-spam: 1 invio ogni 15 s per tavolo, max 8 invii ogni 10 minuti per tavolo, max 25 per rete, max 30 righe e 20 pezzi per piatto.
+- Sullo scontrino della comanda cliente compare **COMANDA DA CLIENTE**.
+- **Variabile nuova su Vercel:** `TABLE_SECRET` (stringa lunga e casuale, diversa da `BRIDGE_TOKEN`). Non cambiarla dopo aver stampato i QR.
+- Lo **Storico** mostra solo le comande del giorno corrente (pulsante per vedere anche i giorni precedenti).

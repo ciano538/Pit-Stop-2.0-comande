@@ -39,6 +39,8 @@ export interface OrderLine {
 }
 
 export interface Order {
+  /** chi ha inserito la comanda */
+  source?: 'staff' | 'customer';
   id: string;
   number: number;
   table: number;

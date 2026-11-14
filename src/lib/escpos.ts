@@ -112,7 +112,7 @@ function orderNote(e: Esc, order: Order) {
 /** Copia per CUCINA/BAR: nessun prezzo, righe in doppia altezza per leggibilità */
 export function kitchenTicket(order: Order, reprint = false): Buffer {
   const e = new Esc();
-  header(e, order, reprint ? '*** RISTAMPA - COMANDA ***' : 'COMANDA');
+  header(e, order, (reprint ? '*** RISTAMPA *** ' : '') + (order.source === 'customer' ? 'COMANDA DA CLIENTE' : 'COMANDA'));
   const stations: Station[] = ['cucina', 'bar'];
   for (const st of stations) {
     const lines = order.lines.filter((l) => l.station === st);
@@ -137,7 +137,7 @@ export function kitchenTicket(order: Order, reprint = false): Buffer {
 /** Copia per la CASSA: prezzi e totale, documento non fiscale */
 export function cassaTicket(order: Order, reprint = false): Buffer {
   const e = new Esc();
-  header(e, order, reprint ? '*** RISTAMPA - COPIA CASSA ***' : 'COPIA CASSA');
+  header(e, order, (reprint ? '*** RISTAMPA *** ' : '') + (order.source === 'customer' ? 'COPIA CASSA (CLIENTE)' : 'COPIA CASSA'));
   for (const l of order.lines) {
     const left = `${l.qty}x ${lineTitle(l)}`;
     const right = eur(l.price * l.qty);

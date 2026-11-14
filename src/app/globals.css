@@ -105,3 +105,37 @@ h1 { font-family: Georgia, 'Times New Roman', serif; color: var(--red); margin: 
 .pin .primary { max-width: 220px; }
 
 .hrow { align-items: flex-start; }
+
+/* --- modalità cliente, turno, QR, storico --- */
+.links { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+.links.big { flex-direction: column; gap: 10px; margin-top: 28px; }
+.links.big a { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 16px; text-decoration: none; color: var(--ink); font-weight: 600; text-align: center; }
+.allergy { font-size: 13px; line-height: 1.4; margin: 10px 0; }
+.closed { padding: 56px 24px; text-align: center; }
+.closed p { font-size: 18px; line-height: 1.5; color: var(--muted); }
+.tnum { font-size: 18px; color: var(--muted); margin-bottom: 8px; }
+.tnum b { color: var(--red); font-size: 30px; font-family: Georgia, serif; }
+.turno { padding: 24px 16px 40px; }
+.state { padding: 22px; border-radius: 16px; text-align: center; font-size: 22px; font-weight: 700; margin-bottom: 16px; }
+.state.on { background: #dff3e6; color: #17703b; }
+.state.off { background: #f6e1e1; color: var(--red-d); }
+.pinbox { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; color: var(--muted); }
+.pinbox input { font-size: 22px; padding: 10px 12px; border: 2px solid var(--line); border-radius: 12px; }
+.tag { background: var(--red); color: #fff; font-size: 11px; padding: 2px 7px; border-radius: 6px; vertical-align: middle; }
+.linkbtn { color: var(--red); text-decoration: underline; font-size: inherit; }
+.qrpage { max-width: 900px; margin: 0 auto; padding: 16px; }
+.qrtop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; }
+.qrtop .primary { width: auto; padding: 12px 28px; flex: none; }
+.qrgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.qrcard { background: #fff; border: 2px dashed #bbb; border-radius: 12px; padding: 14px; text-align: center; break-inside: avoid; }
+.qrbrand { font-family: Georgia, serif; font-weight: 700; color: var(--red); letter-spacing: .06em; }
+.qrtable { font-size: 34px; font-weight: 800; font-family: Georgia, serif; margin: 2px 0 6px; }
+.qrcard img { width: 70%; max-width: 260px; height: auto; }
+.qrtext { font-size: 13px; line-height: 1.45; margin-top: 4px; }
+@media print {
+  .noprint, .top { display: none !important; }
+  body { background: #fff; }
+  .qrpage { padding: 0; max-width: none; }
+  .qrgrid { gap: 8mm; }
+  .qrcard { border: 1px dashed #888; padding: 8mm; page-break-inside: avoid; }
+}

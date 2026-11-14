@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CATEGORIES, ITEMS, ITEM_MAP, QUICK_NOTES, TABLES } from '@/lib/menu';
 import { DICT, LANGS, eur } from '@/lib/i18n';
+import { XT } from '@/lib/i18n-customer';
 import type { Lang, MenuItem } from '@/lib/types';
 
 type Line = { uid: string; itemId: string; opt: number | null; qty: number; note: string };
@@ -22,12 +23,19 @@ const lsSet = (k: string, v: string) => {
   } catch {}
 };
 
-export default function OrderApp() {
+/**
+ * Modalità personale (default): PIN, scelta tavolo, stato stampante.
+ * Modalità cliente (fixedTable + code, dalla pagina /t/N?k=...): tavolo fisso, nessun PIN,
+ * funziona solo a turno aperto.
+ */
+export default function OrderApp({ fixedTable, code }: { fixedTable?: number; code?: string }) {
+  const customer = fixedTable !== undefined;
   const [lang, setLang] = useState<Lang>('it');
   const [pin, setPin] = useState('');
   const [needPin, setNeedPin] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
-  const [table, setTable] = useState<number | null>(null);
+  const [shiftOpen, setShiftOpen] = useState<boolean | null>(null);
+  const [table, setTable] = useState<number | null>(fixedTable ?? null);
   const [covers, setCovers] = useState<number | ''>('');
   const [cat, setCat] = useState(CATEGORIES[0].id);
   const [query, setQuery] = useState('');
@@ -39,30 +47,36 @@ export default function OrderApp() {
   const [toast, setToast] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string; sub?: string } | null>(null);
   const clientId = useRef(uid() + uid());
   const t = DICT[lang];
+  const x = XT[lang];
 
-  // lingua e PIN ricordati sul dispositivo
   useEffect(() => {
     const l = lsGet('ps_lang') as Lang | null;
     if (l && ['it', 'en', 'de'].includes(l)) setLang(l);
-    setPin(lsGet('ps_pin') || '');
-  }, []);
+    if (!customer) setPin(lsGet('ps_pin') || '');
+  }, [customer]);
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  const refreshStatus = useCallback(async () => {
+  // personale: stato stampante / cliente: stato turno
+  const refresh = useCallback(async () => {
     try {
-      const r = await fetch('/api/status', { cache: 'no-store' });
-      const s: Status = await r.json();
-      setStatus(s);
-      if (s.pinRequired && !lsGet('ps_pin')) setNeedPin(true);
+      if (customer) {
+        const r = await fetch('/api/shift', { cache: 'no-store' });
+        setShiftOpen((await r.json()).open);
+      } else {
+        const r = await fetch('/api/status', { cache: 'no-store' });
+        const s: Status = await r.json();
+        setStatus(s);
+        if (s.pinRequired && !lsGet('ps_pin')) setNeedPin(true);
+      }
     } catch {}
-  }, []);
+  }, [customer]);
   useEffect(() => {
-    refreshStatus();
-    const i = setInterval(refreshStatus, 15000);
+    refresh();
+    const i = setInterval(refresh, customer ? 20000 : 15000);
     return () => clearInterval(i);
-  }, [refreshStatus]);
+  }, [refresh, customer]);
 
   const changeLang = (l: Lang) => {
     setLang(l);
@@ -97,7 +111,6 @@ export default function OrderApp() {
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const total = lines.reduce((s, l) => s + ITEM_MAP[l.itemId].price * l.qty, 0);
 
-  // --- menù filtrato ---
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return ITEMS.filter((i) => i.cat === cat);
@@ -113,38 +126,52 @@ export default function OrderApp() {
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-staff-pin': pin },
+        headers: { 'content-type': 'application/json', ...(customer ? {} : { 'x-staff-pin': pin }) },
         body: JSON.stringify({
           clientId: clientId.current,
           table,
+          k: customer ? code : undefined,
           covers: covers === '' ? undefined : covers,
           note: orderNote,
           lang,
           lines: lines.map((l) => ({ itemId: l.itemId, opt: l.opt, qty: l.qty, note: l.note })),
         }),
       });
-      if (res.status === 401) {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && !customer) {
         lsSet('ps_pin', '');
         setPin('');
         setNeedPin(true);
         setCartOpen(false);
         return;
       }
-      const data = await res.json();
+      if (customer && data.error === 'closed') {
+        setShiftOpen(false);
+        setCartOpen(false);
+        return;
+      }
+      if (res.status === 429) {
+        setToast({ kind: 'warn', text: data.error === 'too_fast' ? x.tooFast : x.tooMany });
+        return;
+      }
       if (!res.ok || !data.ok) throw new Error(data.error || 'error');
-      setToast({
-        kind: data.printerOnline === false ? 'warn' : 'ok',
-        text: `${t.sent} · ${t.table} ${table} · #${data.number}`,
-        sub: data.printerOnline === false ? t.printerOff : t.sentSub,
-      });
+      if (customer) {
+        setToast({ kind: 'ok', text: x.sentCustomer, sub: x.sentCustomerSub });
+      } else {
+        setToast({
+          kind: data.printerOnline === false ? 'warn' : 'ok',
+          text: `${t.sent} · ${t.table} ${table} · #${data.number}`,
+          sub: data.printerOnline === false ? t.printerOff : t.sentSub,
+        });
+        setTable(null);
+        setCovers('');
+      }
       setLines([]);
       setOrderNote('');
-      setCovers('');
-      setTable(null);
       setCartOpen(false);
       setQuery('');
       clientId.current = uid() + uid();
-      refreshStatus();
+      refresh();
     } catch {
       setToast({ kind: 'err', text: t.error });
     } finally {
@@ -154,12 +181,11 @@ export default function OrderApp() {
 
   useEffect(() => {
     if (!toast) return;
-    const i = setTimeout(() => setToast(null), toast.kind === 'ok' ? 4000 : 8000);
+    const i = setTimeout(() => setToast(null), toast.kind === 'ok' ? 6000 : 8000);
     return () => clearTimeout(i);
   }, [toast]);
 
-  // --- schermate ---
-  if (needPin) {
+  if (!customer && needPin) {
     return (
       <PinGate
         lang={lang}
@@ -175,22 +201,46 @@ export default function OrderApp() {
   const dot = !status ? 'gray' : status.printer ? 'green' : status.bridge ? 'amber' : 'red';
   const dotText = !status ? '' : status.printer ? t.ok : status.bridge ? t.noPrinter : t.noBridge;
 
+  const header = (
+    <header className="top">
+      <div className="brand">
+        <span className="logo">PIT STOP 2.0</span>
+        {!customer && (
+          <>
+            <span className={`dot ${dot}`} title={dotText} />
+            <span className="dotText">{dotText}</span>
+          </>
+        )}
+      </div>
+      <div className="langs" role="group" aria-label="Language">
+        {LANGS.map((l) => (
+          <button key={l.id} className={lang === l.id ? 'on' : ''} onClick={() => changeLang(l.id)}>
+            {l.label}
+          </button>
+        ))}
+      </div>
+    </header>
+  );
+
+  // cliente con ordinazioni chiuse
+  if (customer && shiftOpen === false) {
+    return (
+      <div className="app">
+        {header}
+        <main className="closed">
+          <div className="tnum">
+            {x.yourTable} <b>{fixedTable}</b>
+          </div>
+          <h1>{x.closedTitle}</h1>
+          <p>{x.closedSub}</p>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      <header className="top">
-        <div className="brand">
-          <span className="logo">PIT STOP 2.0</span>
-          <span className={`dot ${dot}`} title={dotText} />
-          <span className="dotText">{dotText}</span>
-        </div>
-        <div className="langs" role="group" aria-label="Language">
-          {LANGS.map((l) => (
-            <button key={l.id} className={lang === l.id ? 'on' : ''} onClick={() => changeLang(l.id)}>
-              {l.label}
-            </button>
-          ))}
-        </div>
-      </header>
+      {header}
 
       {toast && (
         <div className={`toast ${toast.kind}`} onClick={() => setToast(null)}>
@@ -209,27 +259,40 @@ export default function OrderApp() {
               </button>
             ))}
           </div>
-          <a className="histlink" href="/storico">
-            {t.history}
-          </a>
+          <div className="links">
+            <a className="histlink" href="/storico">
+              {t.history}
+            </a>
+            <a className="histlink" href="/turno">
+              {x.turn} / QR
+            </a>
+          </div>
         </main>
       ) : (
         <>
           <div className="bar">
-            <button className="tablechip" onClick={() => setTable(null)} title={t.changeTable}>
-              {t.table} <b>{table}</b> ⇄
-            </button>
-            <label className="covers">
-              {t.covers}
-              <input
-                inputMode="numeric"
-                value={covers}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
-                  setCovers(Number.isFinite(n) ? Math.min(n, 60) : '');
-                }}
-              />
-            </label>
+            {customer ? (
+              <span className="tablechip">
+                {t.table} <b>{table}</b>
+              </span>
+            ) : (
+              <button className="tablechip" onClick={() => setTable(null)} title={t.changeTable}>
+                {t.table} <b>{table}</b> ⇄
+              </button>
+            )}
+            {!customer && (
+              <label className="covers">
+                {t.covers}
+                <input
+                  inputMode="numeric"
+                  value={covers}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
+                    setCovers(Number.isFinite(n) ? Math.min(n, 60) : '');
+                  }}
+                />
+              </label>
+            )}
             <input
               className="search"
               type="search"
@@ -282,6 +345,7 @@ export default function OrderApp() {
                 </div>
               );
             })}
+            {customer && <p className="muted allergy">{x.allergy}</p>}
           </main>
 
           <footer className="cartbar">
@@ -382,6 +446,7 @@ export default function OrderApp() {
                 placeholder={t.orderNote}
                 onChange={(e) => setOrderNote(e.target.value)}
               />
+              {customer && <p className="muted allergy">{x.allergy}</p>}
               <div className="sum">
                 <span>{t.total}</span>
                 <b>{eur(total)}</b>

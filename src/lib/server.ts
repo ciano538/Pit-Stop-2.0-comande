@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { store } from './store';
 import { cassaTicket, kitchenTicket, testTicket } from './escpos';
@@ -66,3 +67,42 @@ export async function bridgeStatus() {
     pending: await store.llen('printq'),
   };
 }
+
+/* ---------- Ordinazione da parte dei clienti (QR al tavolo) ---------- */
+
+/** Segreto per i codici dei QR: TABLE_SECRET (consigliato), altrimenti BRIDGE_TOKEN */
+function tableSecret() {
+  return process.env.TABLE_SECRET || process.env.BRIDGE_TOKEN || '';
+}
+
+/** Codice segreto del tavolo, fisso nel tempo (quindi il QR stampato resta valido) */
+export function tableCode(table: number) {
+  return crypto.createHmac('sha256', tableSecret()).update(`table:${table}`).digest('hex').slice(0, 10);
+}
+
+export function checkTableCode(table: number, k: unknown) {
+  if (!tableSecret() || typeof k !== 'string') return false;
+  const a = Buffer.from(tableCode(table));
+  const b = Buffer.from(k);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/** Turno aperto = i clienti possono ordinare. Si chiude da solo dopo 14 ore (se ci si dimentica). */
+export async function isShiftOpen() {
+  const s = await store.get<{ open: boolean }>('shift');
+  return !!s?.open;
+}
+export async function setShift(open: boolean) {
+  if (open) await store.set('shift', { open: true, since: Date.now() }, 60 * 60 * 14);
+  else await store.del('shift');
+}
+
+/** Contatore a finestra: restituisce quante volte la chiave è stata usata negli ultimi `ttl` secondi */
+export const hit = (key: string, ttl: number) => store.incr(key, ttl);
+
+export const clientIp = (req: Request) =>
+  req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+
+/** Giorno corrente a Roma, formato YYYYMMDD (stesso prefisso degli id delle comande) */
+export const romeDay = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date()).replace(/-/g, '');
