@@ -90,3 +90,10 @@ Senza Redis usa la memoria del processo (solo per prove locali; su Vercel serve 
 - Sullo scontrino della comanda cliente compare **COMANDA DA CLIENTE**.
 - **Variabile nuova su Vercel:** `TABLE_SECRET` (stringa lunga e casuale, diversa da `BRIDGE_TOKEN`). Non cambiarla dopo aver stampato i QR.
 - Lo **Storico** mostra solo le comande del giorno corrente (pulsante per vedere anche i giorni precedenti).
+
+## Tavoli: apertura, conto, chiusura
+
+- Il cameriere **apre il tavolo** quando i clienti si siedono (pagina **/cassa**, "Apri tavolo"). Solo allora il QR permette di ordinare. Una comanda presa dal cameriere apre il tavolo in automatico.
+- **Stampa conto**: stampa il totale di tutte le comande del tavolo (documento non fiscale).
+- **Chiudi tavolo**: dopo il pagamento. Il tavolo torna libero, il totale riparte da zero e i telefoni dei clienti non possono più ordinare. Se i clienti riscansionano il QR vedono "Tavolo non ancora attivo".
+- Un tavolo dimenticato aperto si chiude da solo dopo 14 ore.

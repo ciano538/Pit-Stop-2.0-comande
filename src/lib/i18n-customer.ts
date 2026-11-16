@@ -3,6 +3,8 @@ import type { Lang } from './types';
 /** Testi aggiuntivi per la modalità cliente (QR al tavolo) */
 export const XT: Record<Lang, Record<string, string>> = {
   it: {
+    tableClosedTitle: 'Tavolo non ancora attivo',
+    tableClosedSub: 'Chiama un cameriere: attiverà il tuo tavolo e potrai ordinare da qui.',
     closedTitle: 'Ordinazioni non attive',
     closedSub: 'Chiedi al personale di sala: ti aiuterà ad ordinare.',
     allergy: 'Per allergie o intolleranze avvisa sempre il personale di sala.',
@@ -18,6 +20,8 @@ export const XT: Record<Lang, Record<string, string>> = {
     close: 'Chiudi ordinazioni',
   },
   en: {
+    tableClosedTitle: 'Your table is not active yet',
+    tableClosedSub: 'Please call a waiter: they will activate your table and you can order from here.',
     closedTitle: 'Ordering is not active',
     closedSub: 'Please ask our staff: they will help you order.',
     allergy: 'For allergies or intolerances, always tell our staff.',
@@ -33,6 +37,8 @@ export const XT: Record<Lang, Record<string, string>> = {
     close: 'Close ordering',
   },
   de: {
+    tableClosedTitle: 'Ihr Tisch ist noch nicht aktiv',
+    tableClosedSub: 'Bitte rufen Sie das Personal: Es aktiviert Ihren Tisch, dann können Sie hier bestellen.',
     closedTitle: 'Bestellung derzeit nicht aktiv',
     closedSub: 'Bitte fragen Sie unser Personal: Wir helfen Ihnen gerne.',
     allergy: 'Bei Allergien oder Unverträglichkeiten bitte immer das Personal informieren.',

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { store } from './store';
-import { cassaTicket, kitchenTicket, testTicket } from './escpos';
+import { billTicket, cassaTicket, kitchenTicket, testTicket } from './escpos';
 import type { Order, PrintJob } from './types';
 
 /** PIN opzionale per camerieri: se STAFF_PIN è impostato, serve l'header x-staff-pin */
@@ -106,3 +106,47 @@ export const clientIp = (req: Request) =>
 /** Giorno corrente a Roma, formato YYYYMMDD (stesso prefisso degli id delle comande) */
 export const romeDay = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date()).replace(/-/g, '');
+
+/* ---------- Sessione del tavolo: il cameriere apre, poi chiude il conto ---------- */
+
+export interface TableState {
+  open: boolean;
+  /** identificativo della sessione: cambia a ogni riapertura, invalida le pagine rimaste aperte */
+  sid: string;
+  since: number;
+}
+const TABLE_TTL = 60 * 60 * 14;
+
+export const getTable = (n: number) => store.get<TableState>(`tbl:${n}`);
+
+export async function openTable(n: number): Promise<TableState> {
+  const s: TableState = { open: true, sid: Math.random().toString(36).slice(2, 10), since: Date.now() };
+  await store.del(`tblo:${n}`); // nuova sessione: conto azzerato
+  await store.set(`tbl:${n}`, s, TABLE_TTL);
+  return s;
+}
+
+export async function closeTable(n: number) {
+  const s = await getTable(n);
+  await store.set(`tbl:${n}`, { open: false, sid: s?.sid || '', since: Date.now() }, TABLE_TTL);
+}
+
+export async function tableOrders(n: number): Promise<Order[]> {
+  const ids = await store.lrange(`tblo:${n}`, 0, 199);
+  const out: Order[] = [];
+  for (const id of ids) {
+    const o = await store.get<Order>(`order:${id}`);
+    if (o) out.push(o);
+  }
+  return out;
+}
+
+export async function enqueueBill(table: number, orders: Order[]) {
+  const id = `bill-${table}-${Date.now().toString(36)}`;
+  await enqueue({
+    id,
+    target: 'cassa',
+    label: `Conto tavolo ${table}`,
+    data: billTicket(table, orders).toString('base64'),
+  });
+}

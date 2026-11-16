@@ -46,7 +46,10 @@ export const store = {
 
   async del(key: string): Promise<void> {
     if (redis) await redis.del(key);
-    else mem.kv.delete(key);
+    else {
+      mem.kv.delete(key);
+      mem.lists.delete(key);
+    }
   },
 
   async incr(key: string, exSec?: number): Promise<number> {

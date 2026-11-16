@@ -139,3 +139,19 @@ h1 { font-family: Georgia, 'Times New Roman', serif; color: var(--red); margin: 
   .qrgrid { gap: 8mm; }
   .qrcard { border: 1px dashed #888; padding: 8mm; page-break-inside: avoid; }
 }
+
+/* --- cassa --- */
+.cassa { padding: 16px 12px 40px; }
+.cgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (min-width: 640px) { .cgrid { grid-template-columns: repeat(3, 1fr); } }
+.ccard { background: var(--paper); border: 2px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ccard.open { border-color: var(--green); background: #f3fbf5; }
+.chead { display: flex; align-items: baseline; justify-content: space-between; }
+.cnum { font-family: Georgia, serif; font-size: 34px; font-weight: 700; color: var(--red); line-height: 1; }
+.cstate { font-size: 12px; font-weight: 700; color: var(--muted); }
+.ccard.open .cstate { color: #17703b; }
+.ctot { font-size: 22px; font-weight: 700; display: flex; flex-direction: column; min-height: 46px; }
+.ctot small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.cbtns { display: flex; flex-direction: column; gap: 6px; }
+.primary.small { padding: 11px; font-size: 15px; border-radius: 10px; }
+.cbtns .ghost.small { text-align: center; }

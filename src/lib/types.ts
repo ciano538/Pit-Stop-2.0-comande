@@ -41,6 +41,8 @@ export interface OrderLine {
 export interface Order {
   /** chi ha inserito la comanda */
   source?: 'staff' | 'customer';
+  /** sessione del tavolo in cui è stata presa la comanda */
+  sid?: string;
   id: string;
   number: number;
   table: number;

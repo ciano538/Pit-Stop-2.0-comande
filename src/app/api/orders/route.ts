@@ -7,8 +7,10 @@ import {
   checkTableCode,
   clientIp,
   enqueueOrder,
+  getTable,
   hit,
   isShiftOpen,
+  openTable,
   romeDay,
   unauthorized,
 } from '@/lib/server';
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
     note?: string;
     lang?: Lang;
     k?: string;
+    sid?: string;
     lines?: CartLineInput[];
   };
   try {
@@ -56,9 +59,14 @@ export async function POST(req: Request) {
 
   // chi invia? cliente (codice del tavolo nel QR) oppure personale (PIN)
   const customer = typeof body.k === 'string' && body.k.length > 0;
+  let tstate = await getTable(table);
   if (customer) {
     if (!checkTableCode(table, body.k)) return NextResponse.json({ error: 'bad_code' }, { status: 403 });
     if (!(await isShiftOpen())) return NextResponse.json({ error: 'closed' }, { status: 403 });
+    // il cliente ordina solo se il cameriere ha aperto il tavolo, e solo dalla sessione corrente
+    if (!tstate?.open || tstate.sid !== body.sid) {
+      return NextResponse.json({ error: 'table_closed' }, { status: 403 });
+    }
   } else if (!checkPin(req)) {
     return unauthorized();
   }
@@ -108,6 +116,9 @@ export async function POST(req: Request) {
     if ((await hit(`rli:${clientIp(req)}`, 600)) > 25) return NextResponse.json({ error: 'too_many' }, { status: 429 });
   }
 
+  // il cameriere che prende una comanda su un tavolo chiuso lo apre in automatico
+  if (!tstate?.open) tstate = await openTable(table);
+
   const day = romeDay();
   const number = await store.incr(`seq:${day}`, 60 * 60 * 36);
   const covers = Math.floor(Number(body.covers));
@@ -115,6 +126,7 @@ export async function POST(req: Request) {
     id: `${day}-${number}`,
     number,
     source: customer ? 'customer' : 'staff',
+    sid: tstate.sid,
     table,
     covers: covers >= 1 && covers <= 60 ? covers : undefined,
     note: typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 300) : undefined,
@@ -127,6 +139,7 @@ export async function POST(req: Request) {
   await store.set(`order:${order.id}`, order, 60 * 60 * 24 * 3);
   await store.lpush('orders', order.id);
   await store.ltrim('orders', 0, 199);
+  await store.rpush(`tblo:${table}`, order.id);
   await enqueueOrder(order);
 
   const result = { id: order.id, number: order.number };

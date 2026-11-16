@@ -96,6 +96,7 @@ export default function Turno() {
 
         <div className="links big">
           <a href="/turno/qr">Stampa i QR dei tavoli</a>
+          <a href="/cassa">Cassa: conti e tavoli</a>
           <a href="/storico">Storico comande di oggi</a>
           <a href="/">Prendi una comanda (camerieri)</a>
         </div>

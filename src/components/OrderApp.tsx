@@ -34,7 +34,9 @@ export default function OrderApp({ fixedTable, code }: { fixedTable?: number; co
   const [pin, setPin] = useState('');
   const [needPin, setNeedPin] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
-  const [shiftOpen, setShiftOpen] = useState<boolean | null>(null);
+  const [checked, setChecked] = useState(false); // personale: controllo PIN fatto?
+  const [tstate, setTstate] = useState<{ shift: boolean; open: boolean; sid: string } | null>(null);
+  const sidRef = useRef<string | null>(null);
   const [table, setTable] = useState<number | null>(fixedTable ?? null);
   const [covers, setCovers] = useState<number | ''>('');
   const [cat, setCat] = useState(CATEGORIES[0].id);
@@ -62,16 +64,32 @@ export default function OrderApp({ fixedTable, code }: { fixedTable?: number; co
   const refresh = useCallback(async () => {
     try {
       if (customer) {
-        const r = await fetch('/api/shift', { cache: 'no-store' });
-        setShiftOpen((await r.json()).open);
+        const r = await fetch(`/api/tables/state?t=${fixedTable}&k=${code}`, { cache: 'no-store' });
+        if (r.ok) {
+          const s = await r.json();
+          // tavolo riaperto dal cameriere = nuova sessione: il carrello di prima non vale più
+          if (sidRef.current !== null && s.sid !== sidRef.current) {
+            setLines([]);
+            setOrderNote('');
+          }
+          sidRef.current = s.sid;
+          setTstate(s);
+        }
       } else {
         const r = await fetch('/api/status', { cache: 'no-store' });
         const s: Status = await r.json();
         setStatus(s);
         if (s.pinRequired && !lsGet('ps_pin')) setNeedPin(true);
+        setChecked(true);
       }
-    } catch {}
-  }, [customer]);
+    } catch {
+      // senza rete non sappiamo se serve il PIN: per sicurezza lo chiediamo se non è già salvato
+      if (!customer) {
+        if (!lsGet('ps_pin')) setNeedPin(true);
+        setChecked(true);
+      }
+    }
+  }, [customer, fixedTable, code]);
   useEffect(() => {
     refresh();
     const i = setInterval(refresh, customer ? 20000 : 15000);
@@ -131,6 +149,7 @@ export default function OrderApp({ fixedTable, code }: { fixedTable?: number; co
           clientId: clientId.current,
           table,
           k: customer ? code : undefined,
+          sid: customer ? sidRef.current : undefined,
           covers: covers === '' ? undefined : covers,
           note: orderNote,
           lang,
@@ -145,9 +164,9 @@ export default function OrderApp({ fixedTable, code }: { fixedTable?: number; co
         setCartOpen(false);
         return;
       }
-      if (customer && data.error === 'closed') {
-        setShiftOpen(false);
+      if (customer && (data.error === 'closed' || data.error === 'table_closed')) {
         setCartOpen(false);
+        refresh();
         return;
       }
       if (res.status === 429) {
@@ -184,6 +203,16 @@ export default function OrderApp({ fixedTable, code }: { fixedTable?: number; co
     const i = setTimeout(() => setToast(null), toast.kind === 'ok' ? 6000 : 8000);
     return () => clearTimeout(i);
   }, [toast]);
+
+  // personale: non mostrare nulla finché il controllo del PIN non è finito
+  if (!customer && !checked) {
+    return (
+      <div className="pin">
+        <span className="logo">PIT STOP 2.0</span>
+        <p className="muted">…</p>
+      </div>
+    );
+  }
 
   if (!customer && needPin) {
     return (
@@ -223,7 +252,7 @@ export default function OrderApp({ fixedTable, code }: { fixedTable?: number; co
   );
 
   // cliente con ordinazioni chiuse
-  if (customer && shiftOpen === false) {
+  if (customer && tstate && (!tstate.shift || !tstate.open)) {
     return (
       <div className="app">
         {header}
@@ -231,8 +260,8 @@ export default function OrderApp({ fixedTable, code }: { fixedTable?: number; co
           <div className="tnum">
             {x.yourTable} <b>{fixedTable}</b>
           </div>
-          <h1>{x.closedTitle}</h1>
-          <p>{x.closedSub}</p>
+          <h1>{tstate.shift ? x.tableClosedTitle : x.closedTitle}</h1>
+          <p>{tstate.shift ? x.tableClosedSub : x.closedSub}</p>
         </main>
       </div>
     );
@@ -262,6 +291,9 @@ export default function OrderApp({ fixedTable, code }: { fixedTable?: number; co
           <div className="links">
             <a className="histlink" href="/storico">
               {t.history}
+            </a>
+            <a className="histlink" href="/cassa">
+              Cassa
             </a>
             <a className="histlink" href="/turno">
               {x.turn} / QR

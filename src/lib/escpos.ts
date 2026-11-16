@@ -165,3 +165,35 @@ export function testTicket(target: string): Buffer {
   e.cut();
   return e.build();
 }
+
+/** Conto riepilogativo del tavolo (tutte le comande della sessione, piatti uguali accorpati) */
+export function billTicket(table: number, orders: Order[]): Buffer {
+  const e = new Esc();
+  e.init().align('c').bold(true).size(1, 1).ln('CONTO PROVVISORIO');
+  e.size(3, 3).ln(`TAVOLO ${table}`);
+  e.size(1, 1).bold(false).ln(fmtDate(new Date().toISOString())).align('l').ln(rule('='));
+
+  const merged = new Map<string, { line: OrderLine; qty: number }>();
+  for (const o of orders) {
+    for (const l of o.lines) {
+      const key = `${l.name}|${l.opt ?? ''}|${l.price}`;
+      const cur = merged.get(key);
+      if (cur) cur.qty += l.qty;
+      else merged.set(key, { line: l, qty: l.qty });
+    }
+  }
+  let total = 0;
+  for (const { line, qty } of merged.values()) {
+    const right = eur(line.price * qty);
+    total += line.price * qty;
+    const wrapped = wrap(`${qty}x ${lineTitle(line)}`, COLS - right.length - 1);
+    e.ln(lr(wrapped[0], right));
+    for (const extra of wrapped.slice(1)) e.ln('   ' + extra);
+  }
+  e.ln(rule('-'));
+  e.bold(true).size(1, 2).ln(lr('TOTALE EUR', eur(total), COLS));
+  e.size(1, 1).bold(false);
+  e.align('c').ln().ln('Documento non fiscale').ln(`Comande: ${orders.length}`).ln('Pit Stop 2.0 - Castelnuovo del Garda');
+  e.cut();
+  return e.build();
+}
